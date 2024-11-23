@@ -8,22 +8,33 @@ using Il2CppCinemachine;
 [assembly: MelonInfo(typeof(MashBoxMod.Main), "MashBoxMod", "0.0.2", "nolew, xrowe")]
 [assembly: MelonGame("Mash Games", "Mash Box")]
 
+
+
 namespace MashBoxMod
 {
     public class Main : MelonMod
     {
+        
+
         // Menu variables
         bool menuOpen = false;
-        int currentTab = 0;
-        int currentTrickInput = 0;
         private Rect windowRect;
+        Tab currentTab;
+        enum Tab
+        {
+            Physics,
+            Tricks,
+            Character,
+            Bike,
+            Misc
+        }
 
         // Physics variables
         bool spinAssist = true;
         bool flightAugment = true;
         bool breakForceBool = false;
-        bool enableSpokes = false;
-        bool disableLevelInAir = false;
+        //bool enableSpokes = false;
+        //bool disableLevelInAir = false; 
         float droneMass = 10f;
         float gravity = 12.5f;
         float pumpForce = 0.2f;
@@ -33,8 +44,7 @@ namespace MashBoxMod
         float camLerp = 6f;
         float steerDamp = 5f;
         float fovValue = 60f;
-        float breakForce = 9999999999f;
-        string breakForceString = "";
+        float breakForce = 999999f;
 
         // Misc variables
         bool bShowInstructionCanvas = true;
@@ -55,11 +65,10 @@ namespace MashBoxMod
         VehicleBalancePID? bmxVehicleBalance;
         FlightPrediction? bmxFlightPrediction;
         BMXCollisionHandler? bmxCollisionHandler;
-        Event? e;
 
 
         // Tricks
-        Rebind? tricks;
+        //Rebind? tricks;
 
         public static string PSportsPrefix = "Proto Sports";
 
@@ -103,17 +112,21 @@ namespace MashBoxMod
             // Find ProtoSports
             if (GameObject.Find("Proto Sports"))
             {
-                PSportsPrefix = "Proto Sports(Clone)";
+                PSportsPrefix = "Proto Sports";
                 ProtoSports = GameObject.Find(PSportsPrefix);
             }
             else if (GameObject.Find("Proto Sports(Clone)"))
             {
-                PSportsPrefix = "Proto Sports";
+                PSportsPrefix = "Proto Sports(Clone)";
                 ProtoSports = GameObject.Find(PSportsPrefix);
             }
             else
             {
                 LoggerInstance.Warning("Proto Sports GameObject not found.");
+
+                /* Proto Sports object will only be found in maps.
+                   I return early here so the console doesnt get spammed.*/
+                return; 
             }
 
             // Find InstructionCanvas
@@ -146,10 +159,11 @@ namespace MashBoxMod
             }
             else
             {
-                LoggerInstance.Warning("Proto_Drone GameObject not found.");
+                LoggerInstance.Warning("Proto_Drone GameObject not found. It must be active when updating.");
             }
-
-            // Find Acceleration Force Object
+            
+            
+            //Find Acceleration Force Object
             AccelObj = GameObject.Find("Acceleration Force");
             if (AccelObj != null)
             {
@@ -166,7 +180,7 @@ namespace MashBoxMod
             }
             else
             {
-                LoggerInstance.Warning("Acceleration Force GameObject not found.");
+                LoggerInstance.Warning("Acceleration Force GameObject not found. Try switching vehicles and trying again.");
             }
 
             // Find BMXChassis
@@ -300,7 +314,6 @@ namespace MashBoxMod
                     if (joint != null)
                     {
                         joint.breakForce = breakForce;
-                        breakForceString = breakForce.ToString();
                     }
                     else
                     {
@@ -344,31 +357,30 @@ namespace MashBoxMod
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("<b>Physics</b>"))
             {
-                currentTab = 0;
+                currentTab = Tab.Physics;
             }
             if (GUILayout.Button("<b>Tricks</b>"))
             {
-                currentTab = 1;
+                currentTab = Tab.Tricks;
             }
             if (GUILayout.Button("<b>Character</b>"))
             {
-                currentTab = 2;
-            }
-            if (GUILayout.Button("<b>Misc</b>"))
-            {
-                currentTab = 3;
+                currentTab = Tab.Character;
             }
             if (GUILayout.Button("<b>Bike</b>"))
             {
-                currentTab = 4;
+                currentTab = Tab.Bike;
+            }
+            if (GUILayout.Button("<b>Misc</b>"))
+            {
+                currentTab = Tab.Misc;
             }
             GUILayout.EndHorizontal();
 
             // Menu
-            switch(currentTab)
+            switch (currentTab)
             {
-                // Physics Tab
-                case 0:
+                case Tab.Physics:
                     spinAssist = GUILayout.Toggle(spinAssist, "<b>Spin Assist</b>");
 
                     flightAugment = GUILayout.Toggle(flightAugment, "<b>Flight Augment</b>");
@@ -405,101 +417,18 @@ namespace MashBoxMod
 
                     breakForceBool = GUILayout.Toggle(breakForceBool, "<b>Enable Break Force</b>");
                     GUILayout.Label($"Rigidbody Joint Break Force = {breakForce}");
-                    breakForceString = GUILayout.TextField(breakForceString);
-
-                    break; 
-
-                // Tricks Tab
-                case 1:
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Left Bumper"))
-                    {
-                        currentTrickInput = 0;
-                    }
-                    if (GUILayout.Button("Right Bumper"))
-                    {
-                        currentTrickInput = 1;
-                        LoggerInstance.Msg("Swapped right bumper input");
-                        // Example of swapping tricks (uncomment and adjust as needed)
-                        // tricks.BindTrick(TrickInput.RightBumper, Direction.Up, tricks.Cannonball);
-                    }
-                    GUILayout.EndHorizontal();
-
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Left Trigger"))
-                    {
-                        currentTrickInput = 2;
-                        GUI.backgroundColor = Color.red;
-                    }
-                    if (GUILayout.Button("Right Trigger"))
-                    {
-                        currentTrickInput = 3;
-                        GUI.backgroundColor = Color.red;
-                    }
-                    GUILayout.EndHorizontal();
-
-                    if (GUILayout.Button("Both Bumpers"))
-                    {
-                        currentTrickInput = 4;
-                    }
-                    if (GUILayout.Button("Both Triggers"))
-                    {
-                        currentTrickInput = 5;
-                    }
-
-                    // TODO: Make UI for binding tricks
-                    switch (currentTrickInput)
-                    {
-                        case 0:
-                            GUILayout.Label("Left Bumper!");
-                            break;
-                        case 1:
-                            GUILayout.Label("Right Bumper!");
-                            break;
-                        case 2:
-                            GUILayout.Label("Left Trigger!");
-                            break;
-                        case 3:
-                            GUILayout.Label("Right Trigger!");
-                            break;
-                        case 4:
-                            GUILayout.Label("Both Bumpers!");
-                            break;
-                        case 5:
-                            GUILayout.Label("Both Triggers!");
-                            break;
-                    }
-
+                    breakForce = GUILayout.HorizontalSlider(breakForce, 0, 999_999f);
                     break;
 
-                // Character Tab
-                case 2: 
+                case Tab.Tricks:
+                    GUILayout.Label("already in new menu");
+                    break;
+
+                case Tab.Character:
                     // TODO
                     break;
 
-                // Misc Tab
-                case 3:
-                    bShowInstructionCanvas = GUILayout.Toggle(bShowInstructionCanvas, "<b>Instruction Canvas</b>");
-                    if (InstructionCanvas != null)
-                    {
-                        InstructionCanvas.SetActive(bShowInstructionCanvas);
-                    }
-
-                    bHapticFeedBack = GUILayout.Toggle(bHapticFeedBack, "<b>Vibration</b>");
-                    if (hapticFeedBack != null)
-                    {
-                        hapticFeedBack.SetActive(bHapticFeedBack);
-                    }
-
-                    GUI.backgroundColor = Color.green;
-                    if (GUILayout.Button("<b>Save Settings</b>"))
-                    {
-                        LoggerInstance.Msg("Saved Settings");
-                    }
-                    break;
-
-                // Bike Tab
-                case 4:
+                case Tab.Bike:
                     // Clear previous entries in categories
                     foreach (var key in new List<string>(categories.Keys))
                     {
@@ -621,44 +550,59 @@ namespace MashBoxMod
                         }
                     }
                     break;
+
+                case Tab.Misc:
+                    bShowInstructionCanvas = GUILayout.Toggle(bShowInstructionCanvas, "<b>Instruction Canvas</b>");
+                    if (InstructionCanvas != null)
+                    {
+                        InstructionCanvas.SetActive(bShowInstructionCanvas);
+                    }
+
+                    bHapticFeedBack = GUILayout.Toggle(bHapticFeedBack, "<b>Vibration</b>");
+                    if (hapticFeedBack != null)
+                    {
+                        hapticFeedBack.SetActive(bHapticFeedBack);
+                    }
+
+                    GUI.backgroundColor = Color.green;
+                    if (GUILayout.Button("<b>Save Settings</b>"))
+                    {
+                        LoggerInstance.Msg("Saved Settings");
+                    }
+                    break;
+
+                
             }
         }
 
 
-
-        void FixManuals()
+        public override void OnUpdate()
         {
-            //pls mash i dont wanna make an AnimationCurve
+            // Menu toggle
+            if (Input.GetKeyDown(KeyCode.LeftAlt))
+            {
+                menuOpen = !menuOpen;
+
+                if (menuOpen)
+                {
+                    Cursor.visible = true;
+                    Cursor.lockState = CursorLockMode.None;
+                }
+                else
+                {
+                    Cursor.visible = false;
+                    Cursor.lockState = CursorLockMode.Locked;
+                }
+            }
+
+            if (Input.GetKeyDown(KeyCode.O))
+            {
+                UpdateObjects();
+            }
         }
 
         public override void OnGUI()
         {
-            // Menu toggle
-            e = Event.current;
-            if (e.type == EventType.KeyDown)
-            {
-                if (e.keyCode == KeyCode.N)
-                {
-                    menuOpen = !menuOpen;
-
-                    if (menuOpen)
-                    {
-                        Cursor.visible = true;
-                        Cursor.lockState = CursorLockMode.None;
-                    }
-                    else
-                    {
-                        Cursor.visible = false;
-                        Cursor.lockState = CursorLockMode.Locked;
-                    }
-                }
-
-                if (e.keyCode == KeyCode.O)
-                {
-                    UpdateObjects();
-                }
-            }
-            
             if (menuOpen)
             {
                 GUI.backgroundColor = new Color(0.2f, 0.2f, 0.2f, 1f);
