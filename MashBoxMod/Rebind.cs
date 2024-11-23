@@ -1,17 +1,16 @@
 ﻿using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMashBox.BMX_Physics_Development.Animancer_Test.Trick_System;
 using Il2CppMG_Core.C_R_I_D.Animation_System.Animancer_Test;
+using MelonLoader;
 using UnityEngine;
-
 namespace MashBoxMod
 {
     public class Rebind
     {
         // trick list used for rebinding. the indexes of the classes in this array are fixed.
         // classes are added in alphabetical order in the FindAnimationData() method. 
-        // when adding entries make sure animObject.name is in alphabetical order top to bottom.
-        // or else indexes will be wrong and this whole system will break.
-
+        // when adding entries make sure the animObject.name is in alphabetical order or else trick indexes will be wrong.
+        // this also makes it easier to read from C++ and add to the UI.
         public List<SyncTrickAnimationData?> trickList = new List<SyncTrickAnimationData?>();
 
         // Every tricks animation data.
@@ -20,6 +19,7 @@ namespace MashBoxMod
         SyncTrickAnimationData? Table;
         SyncTrickAnimationData? Turndown;
         SyncTrickAnimationData? Invert;
+        SyncTrickAnimationData? InvertFlipped;
         SyncTrickAnimationData? Suicide;
         SyncTrickAnimationData? Euro;
         SyncTrickAnimationData? Lookback;
@@ -73,10 +73,17 @@ namespace MashBoxMod
 
         }
 
-        public void BindTrick(TrickInput input, Direction direction, SyncTrickAnimationData newTrick)
+        public bool BindTrick(TrickInput input, Direction direction, SyncTrickAnimationData newTrick)
         {
+            if(newTrick == null || trickSets == null)
+            {
+                Log.Warning("SyncTrickAnimationData or TrickSetData object is null");
+                return false;
+            }
+
             TrickSetData TrickInput = trickSets[(int)input]; 
             TrickInput.TrickData[(int)direction] = newTrick;
+            return true;
         }
 
         public enum TrickInput
@@ -101,15 +108,77 @@ namespace MashBoxMod
             UpLeft,
         }
 
+        public void usePipeControls(bool enabled = false)
+        {
+            if (enabled)
+            {
+                // These buttons were bound to animations that dont exist in mashbox 
+                // Lookback was unmapped so im binding it 
+                BindTrick(TrickInput.LeftBumper, Direction.DownLeft, Lookback);
+                BindTrick(TrickInput.RightBumper, Direction.DownRight, Lookback);
+
+                // Cannonballs werent in pipe but im mapping them to these inputs that aren't bound
+                BindTrick(TrickInput.LeftTrigger, Direction.Up, Cannonball);
+                BindTrick(TrickInput.RightTrigger, Direction.Up, Cannonball);
+
+                // XUps
+                BindTrick(TrickInput.BothBumpers, Direction.Right, XUpRight);
+                BindTrick(TrickInput.BothBumpers, Direction.Left, XUpLeft);
+                // Turndown
+                BindTrick(TrickInput.BothBumpers, Direction.DownLeft, Turndown);
+                // Euro
+                BindTrick(TrickInput.BothBumpers, Direction.UpLeft, Euro);
+                // Invert
+                BindTrick(TrickInput.BothBumpers, Direction.DownRight, Invert);
+                // Tire Grabs
+                BindTrick(TrickInput.LeftBumper, Direction.UpLeft, TireGrabLeft);
+                BindTrick(TrickInput.RightBumper, Direction.UpRight, TireGrabRight);
+                // Moto
+                BindTrick(TrickInput.LeftTrigger, Direction.Right, MotoRight);
+                BindTrick(TrickInput.RightTrigger, Direction.Left, MotoLeft);
+                // Tbogs
+                BindTrick(TrickInput.LeftBumper, Direction.Right, TBogLeft);
+                BindTrick(TrickInput.RightBumper, Direction.Left, TBogRight);
+                // Seat grabs
+                BindTrick(TrickInput.LeftBumper, Direction.Up, SeatGrabLeft);
+                BindTrick(TrickInput.RightBumper, Direction.Up, SeatGrabRight);
+            }
+            else
+            {
+                // Original mashbox binds.
+                BindTrick(TrickInput.LeftBumper, Direction.DownLeft, TBogLeft);
+                BindTrick(TrickInput.RightBumper, Direction.DownRight, TBogRight);
+                BindTrick(TrickInput.LeftTrigger, Direction.Up, null);
+                BindTrick(TrickInput.RightTrigger, Direction.Up, null);
+                BindTrick(TrickInput.LeftBumper, Direction.Up, null);
+                BindTrick(TrickInput.RightBumper, Direction.Up, null);
+                BindTrick(TrickInput.BothBumpers, Direction.Right, Invert);
+                BindTrick(TrickInput.BothBumpers, Direction.Left, Turndown);
+                BindTrick(TrickInput.BothBumpers, Direction.DownLeft, Euro);
+                BindTrick(TrickInput.BothBumpers, Direction.UpLeft, Cannonball);
+                BindTrick(TrickInput.BothBumpers, Direction.DownRight, Lookback);
+                BindTrick(TrickInput.LeftBumper, Direction.UpLeft, XUpLeft);
+                BindTrick(TrickInput.RightBumper, Direction.UpRight, XUpRight);
+                BindTrick(TrickInput.LeftTrigger, Direction.Right, MotoLeft);
+                BindTrick(TrickInput.RightTrigger, Direction.Left, MotoRight);
+                BindTrick(TrickInput.LeftBumper, Direction.Right, SeatGrabLeft);
+                BindTrick(TrickInput.RightBumper, Direction.Left, SeatGrabRight);
+                BindTrick(TrickInput.LeftBumper, Direction.Up, null);
+                BindTrick(TrickInput.RightBumper, Direction.Up, null);
+            }
+            
+
+        }
         public void FindAnimationData()
         {
-            var animObjects = Resources.FindObjectsOfTypeAll<Il2CppMG_Core.C_R_I_D.Animation_System.Animancer_Test.SyncTrickAnimationData>();
+            var animObjects = Resources.FindObjectsOfTypeAll<SyncTrickAnimationData>();
             foreach (var animObject in animObjects)
             {
-                if (animObject.name == "Barspin Left_SyncAnimatorData_PlayerBMX")
+
+                if ( animObject.name == "Barspin Left_SyncAnimatorData_PlayerBMX")
                 {
                     BarspinLeft = animObject;
-                    trickList.Add(BarspinLeft);
+                    if(animObject != null) trickList.Add(BarspinLeft);
                 }
 
                 if (animObject.name == "Barspin Right_SyncAnimatorData_PlayerBMX")
@@ -359,7 +428,6 @@ namespace MashBoxMod
                 }
 
             }
-
 
         }
 

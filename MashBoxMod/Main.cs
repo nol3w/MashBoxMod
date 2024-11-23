@@ -8,14 +8,10 @@ using Il2CppCinemachine;
 [assembly: MelonInfo(typeof(MashBoxMod.Main), "MashBoxMod", "0.0.2", "nolew, xrowe")]
 [assembly: MelonGame("Mash Games", "Mash Box")]
 
-
-
 namespace MashBoxMod
 {
     public class Main : MelonMod
     {
-        
-
         // Menu variables
         bool menuOpen = false;
         private Rect windowRect;
@@ -29,10 +25,12 @@ namespace MashBoxMod
             Misc
         }
 
+
         // Physics variables
         bool spinAssist = true;
         bool flightAugment = true;
         bool breakForceBool = false;
+        bool bBoost = false;
         //bool enableSpokes = false;
         //bool disableLevelInAir = false; 
         float droneMass = 10f;
@@ -45,10 +43,16 @@ namespace MashBoxMod
         float steerDamp = 5f;
         float fovValue = 60f;
         float breakForce = 999999f;
+        float boostForce = 999f;
+
+        // Trick variables
+        //Rebind? tricks;
+        //bool usePipeControls = false;
 
         // Misc variables
         bool bShowInstructionCanvas = true;
         bool bHapticFeedBack = true;
+
 
         // References
         GameObject? ProtoSports;
@@ -65,12 +69,12 @@ namespace MashBoxMod
         VehicleBalancePID? bmxVehicleBalance;
         FlightPrediction? bmxFlightPrediction;
         BMXCollisionHandler? bmxCollisionHandler;
-
-
-        // Tricks
-        //Rebind? tricks;
+        Rigidbody? chassisRb;
 
         public static string PSportsPrefix = "Proto Sports";
+
+
+
 
         // Categories dictionary
         private Dictionary<string, (string displayName, List<EquipSlotNew> slots)> categories = new Dictionary<string, (string displayName, List<EquipSlotNew> slots)>
@@ -104,84 +108,42 @@ namespace MashBoxMod
         private Dictionary<string, int> categoryArticleIndices = new Dictionary<string, int>();
 
 
-        // For scroll view in GUI
-        private Vector2 scrollPosition = Vector2.zero;
-
-        void UpdateObjects()
+        void Boost()
         {
-            // Find ProtoSports
-            if (GameObject.Find("Proto Sports"))
+            // Ensure references are valid
+            if (chassisRb == null || BMXChassis == null)
             {
-                PSportsPrefix = "Proto Sports";
-                ProtoSports = GameObject.Find(PSportsPrefix);
-            }
-            else if (GameObject.Find("Proto Sports(Clone)"))
-            {
-                PSportsPrefix = "Proto Sports(Clone)";
-                ProtoSports = GameObject.Find(PSportsPrefix);
-            }
-            else
-            {
-                LoggerInstance.Warning("Proto Sports GameObject not found.");
-
-                /* Proto Sports object will only be found in maps.
-                   I return early here so the console doesnt get spammed.*/
-                return; 
+                Log.Warning("chassisRb or BMXChassis is null!");
+                return;
             }
 
-            // Find InstructionCanvas
-            InstructionCanvas = GameObject.Find($"{PSportsPrefix}/Instructions Canvas");
-            if (InstructionCanvas == null)
+            // Boost forward when B is held down
+            if (bBoost && Input.GetKey(KeyCode.JoystickButton0))
             {
-                LoggerInstance.Warning("InstructionCanvas GameObject not found.");
+                chassisRb.AddForce(BMXChassis.transform.forward * boostForce, ForceMode.Impulse);
             }
+        }
 
-            // Find HapticFeedback
-            hapticFeedBack = GameObject.Find("Haptic Feedback Manager(Clone)") ?? GameObject.Find("Haptic Feedback Manager");
-            if (hapticFeedBack == null)
-            {
-                LoggerInstance.Warning("Haptic Feedback Manager GameObject not found.");
-            }
-
-            // Find Drone
+        void UpdatePhysics()
+        {
+            // Find Drone.
+            // If the drone isnt out this constantly returns null so im not logging anything.
             drone = GameObject.Find("Proto_Drone");
             if (drone != null)
             {
-                var droneRigidbody = drone.GetComponent<Rigidbody>();
-                if (droneRigidbody != null)
-                {
-                    droneRigidbody.mass = droneMass;
-                }
-                else
-                {
-                    LoggerInstance.Warning("Rigidbody component not found on Proto_Drone.");
-                }
+                drone.GetComponent<Rigidbody>().mass = droneMass;
             }
-            else
-            {
-                LoggerInstance.Warning("Proto_Drone GameObject not found. It must be active when updating.");
-            }
-            
-            
+
             //Find Acceleration Force Object
+            //Is constantly null until the user changes bikes. so im not logging anything.
             AccelObj = GameObject.Find("Acceleration Force");
-            if (AccelObj != null)
+            if(AccelObj != null)
             {
                 var accelerationForce = AccelObj.GetComponent<SimpleAccelerationForce>();
-                if (accelerationForce != null)
-                {
-                    accelerationForce._force = pedalForce;
-                    accelerationForce._topSpeed = maxSpeed;
-                }
-                else
-                {
-                    LoggerInstance.Warning("SimpleAccelerationForce component not found on Acceleration Force GameObject.");
-                }
+                accelerationForce._force = pedalForce;
+                accelerationForce._topSpeed = maxSpeed;
             }
-            else
-            {
-                LoggerInstance.Warning("Acceleration Force GameObject not found. Try switching vehicles and trying again.");
-            }
+            
 
             // Find BMXChassis
             BMXChassis = GameObject.Find("Chassis Body");
@@ -194,7 +156,7 @@ namespace MashBoxMod
                 }
                 else
                 {
-                    LoggerInstance.Warning("SpinSystem component not found on Chassis Body.");
+                    Log.Warning("SpinSystem component not found on Chassis Body.");
                 }
 
                 var vehicleController = BMXChassis.GetComponent<VehicleController>();
@@ -204,22 +166,83 @@ namespace MashBoxMod
                 }
                 else
                 {
-                    LoggerInstance.Warning("VehicleController component not found on Chassis Body.");
+                    Log.Warning("VehicleController component not found on Chassis Body.");
                 }
 
-                var pumpForce = BMXChassis.GetComponent<PumpSystem>();
-                if (pumpForce != null)
+                var pumpForceComponent = BMXChassis.GetComponent<PumpSystem>();
+                if (pumpForceComponent != null)
                 {
-                    pumpForce._pumpForce = this.pumpForce;
+                    pumpForceComponent._pumpForce = pumpForce;
                 }
                 else
                 {
-                    LoggerInstance.Warning("SimplePumpForce component not found on Chassis Body.");
+                    Log.Warning("PumpSystem component not found on Chassis Body.");
                 }
             }
             else
             {
-                LoggerInstance.Warning("Chassis Body GameObject not found.");
+                Log.Warning("Chassis Body GameObject not found.");
+            }
+
+
+            // Get VehicleController from BMXChassis
+            if (BMXChassis != null)
+            {
+                bmxVehicleController = BMXChassis.GetComponentInChildren<VehicleController>();
+                if (bmxVehicleController != null)
+                {
+                    bmxVehicleController._steerDampRate = steerDamp;
+                }
+                else
+                {
+                    Log.Warning("VehicleController component not found in children of Chassis Body.");
+                }
+
+                // Get FlightAugmentTest
+                bmxFlightAugment = BMXChassis.GetComponentInChildren<FlightAugmentTest>();
+                if (bmxFlightAugment != null)
+                {
+                    bmxFlightAugment.enabled = flightAugment;
+                }
+                else
+                {
+                    Log.Warning("FlightAugmentTest component not found in children of Chassis Body.");
+                }
+
+                // Get CollisionHandler
+                bmxCollisionHandler = BMXChassis.GetComponent<BMXCollisionHandler>();
+                if (bmxCollisionHandler == null)
+                {
+                    Log.Warning("BMXCollisionHandler component not found on Chassis Body.");
+                }
+
+                // Get VehicleBalancePID
+                bmxVehicleBalance = BMXChassis.GetComponent<VehicleBalancePID>();
+                if (bmxVehicleBalance == null)
+                {
+                    Log.Warning("VehicleBalancePID component not found on Chassis Body.");
+                }
+
+                // Get FlightPrediction
+                bmxFlightPrediction = BMXChassis.GetComponent<FlightPrediction>();
+                if (bmxFlightPrediction == null)
+                {
+                    Log.Warning("FlightPrediction component not found on Chassis Body.");
+                }
+
+                // Update joints' break force
+                var joints = BMXChassis.GetComponentsInChildren<Joint>();
+                foreach (var joint in joints)
+                {
+                    if (joint != null)
+                    {
+                        joint.breakForce = breakForce;
+                    }
+                    else
+                    {
+                        Log.Warning("Encountered a null Joint in children of Chassis Body.");
+                    }
+                }
             }
 
             // Find Camera Target
@@ -233,12 +256,12 @@ namespace MashBoxMod
                 }
                 else
                 {
-                    LoggerInstance.Warning("BMXCMCameraTarget component not found on BMX Camera Target.");
+                    Log.Warning("BMXCMCameraTarget component not found on BMX Camera Target.");
                 }
             }
             else
             {
-                LoggerInstance.Warning("BMX Camera Target GameObject not found.");
+                Log.Warning("BMX Camera Target GameObject not found.");
             }
 
             // Find Virtual Camera
@@ -254,79 +277,33 @@ namespace MashBoxMod
                 }
                 else
                 {
-                    LoggerInstance.Warning("CinemachineVirtualCamera component not found on 2d Virtual Camera.");
+                    Log.Warning("CinemachineVirtualCamera component not found on 2d Virtual Camera.");
                 }
             }
             else
             {
-                LoggerInstance.Warning("2d Virtual Camera GameObject not found.");
+                Log.Warning("2d Virtual Camera GameObject not found.");
             }
 
-            // Get VehicleController from BMXChassis
-            if (BMXChassis != null)
-            {
-                bmxVehicleController = BMXChassis.GetComponentInChildren<VehicleController>();
-                if (bmxVehicleController != null)
-                {
-                    bmxVehicleController._steerDampRate = steerDamp;
-                }
-                else
-                {
-                    LoggerInstance.Warning("VehicleController component not found in children of Chassis Body.");
-                }
+            chassisRb = BMXChassis.GetComponent<Rigidbody>();
 
-                // Get FlightAugmentTest
-                bmxFlightAugment = BMXChassis.GetComponentInChildren<FlightAugmentTest>();
-                if (bmxFlightAugment != null)
-                {
-                    bmxFlightAugment.enabled = flightAugment;
-                }
-                else
-                {
-                    LoggerInstance.Warning("FlightAugmentTest component not found in children of Chassis Body.");
-                }
-
-                // Get CollisionHandler
-                bmxCollisionHandler = BMXChassis.GetComponent<BMXCollisionHandler>();
-                if (bmxCollisionHandler == null)
-                {
-                    LoggerInstance.Warning("BMXCollisionHandler component not found on Chassis Body.");
-                }
-
-                // Get VehicleBalancePID
-                bmxVehicleBalance = BMXChassis.GetComponent<VehicleBalancePID>();
-                if (bmxVehicleBalance == null)
-                {
-                    LoggerInstance.Warning("VehicleBalancePID component not found on Chassis Body.");
-                }
-
-                // Get FlightPrediction
-                bmxFlightPrediction = BMXChassis.GetComponent<FlightPrediction>();
-                if (bmxFlightPrediction == null)
-                {
-                    LoggerInstance.Warning("FlightPrediction component not found on Chassis Body.");
-                }
-
-                // Update joints' break force
-                var joints = BMXChassis.GetComponentsInChildren<Joint>();
-                foreach (var joint in joints)
-                {
-                    if (joint != null)
-                    {
-                        joint.breakForce = breakForce;
-                    }
-                    else
-                    {
-                        LoggerInstance.Warning("Encountered a null Joint in children of Chassis Body.");
-                    }
-                }
-            }
+            Boost();
         }
 
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        // TODO: Load Custom Meshes for character 
+        // Find all AssetBundle files in directory.
+        // Load AssetBundle
+        // Load GameObjects, or whatever else is needed from bundle.
+        void LoadCharacterAssets(string prefabName)
         {
-            UpdateObjects();
+
         }
+        void ApplyCharacter(GameObject newChar)
+        {
+
+        }
+
+        // Do any bike stuff you want here
 
         //an attempt was made to fix flairs, side quest abandoned for now
         //public override void OnFixedUpdate()
@@ -351,31 +328,99 @@ namespace MashBoxMod
         //    }
         //}
 
-        void WndProc(int windowID)
+        public override void OnFixedUpdate()
         {
-            GUI.backgroundColor = Color.green;
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("<b>Physics</b>"))
+            if(ProtoSports)
             {
-                currentTab = Tab.Physics;
+                UpdatePhysics();
             }
-            if (GUILayout.Button("<b>Tricks</b>"))
+        }
+        public override void OnUpdate()
+        {
+            // Menu toggle
+            if (Input.GetKeyDown(KeyCode.N) || Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
             {
-                currentTab = Tab.Tricks;
+                menuOpen = !menuOpen;
+
+                if (menuOpen)
+                {
+                    Cursor.visible = true;
+                    Cursor.lockState = CursorLockMode.None;
+                }
+                else
+                {
+                    Cursor.visible = false;
+                    Cursor.lockState = CursorLockMode.Locked;
+                }
             }
-            if (GUILayout.Button("<b>Character</b>"))
+        }
+        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        {
+            // Find ProtoSports
+            if (GameObject.Find("Proto Sports"))
             {
-                currentTab = Tab.Character;
+                PSportsPrefix = "Proto Sports";
+                ProtoSports = GameObject.Find(PSportsPrefix);
             }
-            if (GUILayout.Button("<b>Bike</b>"))
+            else if (GameObject.Find("Proto Sports(Clone)"))
             {
-                currentTab = Tab.Bike;
+                PSportsPrefix = "Proto Sports(Clone)";
+                ProtoSports = GameObject.Find(PSportsPrefix);
             }
-            if (GUILayout.Button("<b>Misc</b>"))
+            else
             {
-                currentTab = Tab.Misc;
+                Log.Warning("Proto Sports GameObject not found.");
             }
-            GUILayout.EndHorizontal();
+
+            // Find InstructionCanvas
+            InstructionCanvas = GameObject.Find($"{PSportsPrefix}/Instructions Canvas");
+            if (InstructionCanvas == null)
+            {
+                Log.Warning("InstructionCanvas GameObject not found.");
+            }
+            // Find HapticFeedback
+            hapticFeedBack = GameObject.Find("Haptic Feedback Manager(Clone)") ?? GameObject.Find("Haptic Feedback Manager");
+            if (hapticFeedBack == null)
+            {
+                Log.Warning("Haptic Feedback Manager GameObject not found.");
+            }
+
+            //if (tricks == null)
+            //{
+            //    tricks = new Rebind();
+            //    tricks.FindAnimationData();
+            //}
+        }
+
+        void DrawMenu(int windowID)
+        {
+            GUI.backgroundColor = Color.magenta;
+            // Draw Buttons
+            {
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("<b>Physics</b>"))
+                {
+                    currentTab = Tab.Physics;
+                }
+                if (GUILayout.Button("<b>Tricks</b>"))
+                {
+                    currentTab = Tab.Tricks;
+                }
+                if (GUILayout.Button("<b>Character</b>"))
+                {
+                    currentTab = Tab.Character;
+                }
+                if (GUILayout.Button("<b>Bike</b>"))
+                {
+                    currentTab = Tab.Bike;
+                }
+                if (GUILayout.Button("<b>Misc</b>"))
+                {
+                    currentTab = Tab.Misc;
+                }
+                GUILayout.EndHorizontal();
+
+            }
 
             // Menu
             switch (currentTab)
@@ -385,47 +430,54 @@ namespace MashBoxMod
 
                     flightAugment = GUILayout.Toggle(flightAugment, "<b>Flight Augment</b>");
 
-                    //disableLevelInAir = GUILayout.Toggle(disableLevelInAir, "<b>Disable Leveling in air</b>");
 
-                    GUILayout.Label($"Gravity = {gravity}");
+                    //bBoost = GUILayout.Toggle(bBoost, "<b>In air boost (A/X)</b>");
+                    //GUILayout.Label($"Boost force= {boostForce}");
+                    //boostForce = GUILayout.HorizontalSlider(boostForce, 0, 9999f);
+
+                    breakForceBool = GUILayout.Toggle(breakForceBool, "<b>Bike Breaking (WIP)</b>");
+                    GUILayout.Label($"Break Force Required = {breakForce}");
+                    breakForce = GUILayout.HorizontalSlider(breakForce, 0, 999_999f);
+                    
+                    GUILayout.Label($"Gravity: <b>{gravity}</b>");
                     gravity = GUILayout.HorizontalSlider(gravity, 0, 30f);
                     Physics.gravity = new Vector3(0f, -this.gravity, 0f);
 
-                    GUILayout.Label($"Pump Force = {pumpForce}");
-                    pumpForce = GUILayout.HorizontalSlider(pumpForce, 0, 5f);
+                    GUILayout.Label($"Pump Force: <b>{pumpForce}</b>");
+                    pumpForce = GUILayout.HorizontalSlider(pumpForce, 0, 30f);
 
-                    GUILayout.Label($"Spin Speed Multi = {spinTorque}");
+                    GUILayout.Label($"Spin Speed Multi: <b>{spinTorque}</b>");
                     spinTorque = GUILayout.HorizontalSlider(spinTorque, 0, 10f);
 
-                    GUILayout.Label($"Pedal Force = {pedalForce}");
+                    GUILayout.Label($"Pedal Force: <b>{pedalForce}</b>");
                     pedalForce = GUILayout.HorizontalSlider(pedalForce, 0, 25f);
 
-                    GUILayout.Label($"Max Speed = {maxSpeed}");
+                    GUILayout.Label($"Max Speed: <b>{maxSpeed}</b>");
                     maxSpeed = GUILayout.HorizontalSlider(maxSpeed, 0, 25f);
 
-                    GUILayout.Label($"Drone Mass = {droneMass}");
-                    droneMass = GUILayout.HorizontalSlider(droneMass, 10f, 9999f);
-
-                    GUILayout.Label($"Camera Rotation Lerp = {camLerp}");
-                    camLerp = GUILayout.HorizontalSlider(camLerp, 0f, 5f);
-
-                    GUILayout.Label($"Camera Field of View = {fovValue}");
-                    fovValue = GUILayout.HorizontalSlider(fovValue, 1f, 200f);
-
-                    GUILayout.Label($"Steering Dampening = {steerDamp}");
+                    GUILayout.Label($"Steering Dampening: <b>{steerDamp}</b>");
                     steerDamp = GUILayout.HorizontalSlider(steerDamp, 1f, 5f);
 
-                    breakForceBool = GUILayout.Toggle(breakForceBool, "<b>Enable Break Force</b>");
-                    GUILayout.Label($"Rigidbody Joint Break Force = {breakForce}");
-                    breakForce = GUILayout.HorizontalSlider(breakForce, 0, 999_999f);
+                    
                     break;
-
                 case Tab.Tricks:
-                    GUILayout.Label("already in new menu");
+                    GUILayout.Label("<b>Coming soon...</b>");
+                    // This is broken, ill fix it once the new menu is setup. 
+
+                    // Use pipe controls? usepipeControls if usePipeControls. if no usePipeControls no usePipeControls.
+                    //if (GUILayout.Button($"Use Pipe Controls {(usePipeControls ? "ON" : "OFF")}")) 
+                    //{
+                    //    usePipeControls = !usePipeControls;
+                    //    if(usePipeControls)
+                    //    {
+                    //        tricks.usePipeControls(usePipeControls);
+                    //    }
+                    //}
                     break;
 
                 case Tab.Character:
-                    // TODO
+                    // TODO:
+                    GUILayout.Label("<b>Coming soon...</b>");
                     break;
 
                 case Tab.Bike:
@@ -468,12 +520,12 @@ namespace MashBoxMod
 
                                 if (!foundCategory)
                                 {
-                                    LoggerInstance.Warning($"EquipSlotNew component on {gameObjectName} does not match any category.");
+                                    Log.Warning($"EquipSlotNew component on {gameObjectName} does not match any category.");
                                 }
                             }
                             else
                             {
-                                LoggerInstance.Warning("Encountered a null EquipSlotNew component or GameObject.");
+                                Log.Warning("Encountered a null EquipSlotNew component or GameObject.");
                             }
                         }
 
@@ -522,7 +574,7 @@ namespace MashBoxMod
                                         }
                                         else
                                         {
-                                            LoggerInstance.Warning($"EquipSlotNew in category {displayName} is null or has no available assets.");
+                                            Log.Warning($"EquipSlotNew in category {displayName} is null or has no available assets.");
                                         }
                                     }
                                 }
@@ -540,7 +592,7 @@ namespace MashBoxMod
                                         }
                                         else
                                         {
-                                            LoggerInstance.Warning($"EquipSlotNew in category {displayName} is null or has no available assets.");
+                                            Log.Warning($"EquipSlotNew in category {displayName} is null or has no available assets.");
                                         }
                                     }
                                 }
@@ -564,40 +616,15 @@ namespace MashBoxMod
                         hapticFeedBack.SetActive(bHapticFeedBack);
                     }
 
-                    GUI.backgroundColor = Color.green;
-                    if (GUILayout.Button("<b>Save Settings</b>"))
-                    {
-                        LoggerInstance.Msg("Saved Settings");
-                    }
+                    GUILayout.Label($"Drone Mass = <b>{droneMass}</b>");
+                    droneMass = GUILayout.HorizontalSlider(droneMass, 10f, 9999f);
+
+                    GUILayout.Label($"Camera Rotation Lerp = <b>{camLerp}</b>");
+                    camLerp = GUILayout.HorizontalSlider(camLerp, 0f, 5f);
+
+                    GUILayout.Label($"Camera Field of View = <b>{fovValue}</b>");
+                    fovValue = GUILayout.HorizontalSlider(fovValue, 1f, 200f);
                     break;
-
-                
-            }
-        }
-
-
-        public override void OnUpdate()
-        {
-            // Menu toggle
-            if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
-            {
-                menuOpen = !menuOpen;
-
-                if (menuOpen)
-                {
-                    Cursor.visible = true;
-                    Cursor.lockState = CursorLockMode.None;
-                }
-                else
-                {
-                    Cursor.visible = false;
-                    Cursor.lockState = CursorLockMode.Locked;
-                }
-            }
-
-            if (Input.GetKeyDown(KeyCode.O))
-            {
-                UpdateObjects();
             }
         }
 
@@ -605,8 +632,8 @@ namespace MashBoxMod
         {
             if (menuOpen)
             {
-                GUI.backgroundColor = new Color(0.2f, 0.2f, 0.2f, 1f);
-                windowRect = GUI.Window(0, new Rect(Screen.width / 2f - (800f / 2), 250f, 800f, 600f), new Action<int>(this.WndProc), "<b>MashBoxMod</b>");
+                GUI.backgroundColor = new Color(0, 0, 0, 1f);
+                windowRect = GUI.Window(0, new Rect(Screen.width / 2f - (800f / 2), 250f, 800f, 600f), new Action<int>(DrawMenu), "<b>MashBoxMod</b>");
             }
         }
     }
