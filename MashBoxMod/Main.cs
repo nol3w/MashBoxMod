@@ -579,7 +579,7 @@ namespace MashBoxMod
         public override void OnUpdate()
         {
             // Menu toggle
-            if (Input.GetKeyDown(KeyCode.LeftAlt))
+            if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
             {
                 menuOpen = !menuOpen;
 
